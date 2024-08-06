@@ -1,81 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WebRTC Audio Source Switch</title>
+    <title>WebRTC Audio Source Switching</title>
+    <style>
+      video {
+        width: 480px;
+        height: 360px;
+      }
+    </style>
   </head>
   <body>
-    <button id="switchToSpeaker">Switch to Speaker</button>
-    <button id="switchToHeadset">Switch to Headset</button>
-    <audio id="remoteAudio" autoplay controls></audio>
+    <video id="local-video" autoplay></video>
+    <video id="remote-video" autoplay></video>
+    <button id="switch-audio-source">Switch Audio Source</button>
+    <button id="switch-speaker-source">Switch speaker Source</button>
+
     <script>
-      const remoteAudio = document.getElementById("remoteAudio");
-      const switchToSpeakerBtn = document.getElementById("switchToSpeaker");
-      const switchToHeadsetBtn = document.getElementById("switchToHeadset");
+      const localVideo = document.getElementById("local-video");
+      const remoteVideo = document.getElementById("remote-video");
+      const switchAudioSourceButton = document.getElementById(
+        "switch-audio-source"
+      );
+      const switchSpeakerSourceButton = document.getElementById(
+        "switch-speaker-source"
+      );
 
       let localStream;
-      let peerConnection;
+      let remoteStream;
+      let currentAudioSource = "speaker";
 
-      async function init() {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false,
-        });
-        remoteAudio.srcObject = localStream;
-
-        peerConnection = new RTCPeerConnection();
-
-        peerConnection.addEventListener("track", (event) => {
-          remoteAudio.srcObject = event.streams[0];
-        });
-
-        localStream.getTracks().forEach((track) => {
-          peerConnection.addTrack(track, localStream);
+      // Initialize WebRTC
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          localStream = stream;
+          localVideo.srcObject = stream;
+        })
+        .catch((error) => {
+          console.error("Error getting media devices:", error);
         });
 
-        switchToSpeakerBtn.addEventListener("click", switchToSpeaker);
-        switchToHeadsetBtn.addEventListener("click", switchToHeadset);
-      }
+      // Example peer connection setup (omitted for brevity)
+      // ...
 
-      async function switchToSpeaker() {
-        await switchAudioOutput("speaker");
-      }
-
-      async function switchToHeadset() {
-        await switchAudioOutput("headset");
-      }
-
-      async function switchAudioOutput(deviceType) {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioOutputDevices = devices.filter(
-          (device) => device.kind === "audiooutput"
-        );
-
-        let targetDevice;
-        if (deviceType === "speaker") {
-          targetDevice = audioOutputDevices.find((device) =>
-            device.label.toLowerCase().includes("speaker")
-          );
-        } else if (deviceType === "headset") {
-          targetDevice = audioOutputDevices.find((device) =>
-            device.label.toLowerCase().includes("headset")
-          );
-        }
-
-        if (targetDevice) {
-          try {
-            await remoteAudio.setSinkId(targetDevice.deviceId);
-            console.log(`Switched to ${targetDevice.label}`);
-          } catch (error) {
-            console.error("Error switching audio output device:", error);
-          }
+      switchAudioSourceButton.addEventListener("click", () => {
+        if (currentAudioSource === "speaker") {
+          switchToHeadset();
         } else {
-          console.error(`No ${deviceType} found`);
+          switchToSpeaker();
         }
+      });
+
+      switchSpeakerSourceButton.addEventListener("click", () => {
+        switchToSpeaker();
+      });
+
+      function switchToHeadset() {
+        const audioTracks = localStream.getAudioTracks();
+        audioTracks.forEach((track) => {
+          track.stop();
+        });
+
+        navigator.mediaDevices
+          .getUserMedia({ audio: { deviceId: { exact: "headset-device-id" } } })
+          .then((stream) => {
+            localStream = stream;
+            localVideo.srcObject = stream;
+            currentAudioSource = "headset";
+            switchAudioSourceButton.textContent = "Switch to Speaker";
+          })
+          .catch((error) => {
+            console.error("Error switching to headset:", error);
+          });
       }
 
-      init();
+      function switchToSpeaker() {
+        const audioTracks = localStream.getAudioTracks();
+        audioTracks.forEach((track) => {
+          track.stop();
+        });
+
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            localStream = stream;
+            localVideo.srcObject = stream;
+            currentAudioSource = "speaker";
+            switchAudioSourceButton.textContent = "Switch to Headset";
+          })
+          .catch((error) => {
+            console.error("Error switching to speaker:", error);
+          });
+      }
     </script>
   </body>
 </html>
