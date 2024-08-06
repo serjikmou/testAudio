@@ -1,97 +1,81 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>WebRTC Audio Source Switching</title>
-    <style>
-      video {
-        width: 480px;
-        height: 360px;
-      }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Audio Device Switcher</title>
   </head>
   <body>
-    <video id="local-video" autoplay></video>
-    <video id="remote-video" autoplay></video>
-    <button id="switch-audio-source">Switch Audio Source</button>
-    <button id="switch-speaker-source">Switch speaker Source</button>
-
+    <h1>WebRTC Audio Device Switcher</h1>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <div>
+      <label for="audioOutput">Select Audio Output Device:</label>
+      <select id="audioOutput"></select>
+    </div>
     <script>
-      const localVideo = document.getElementById("local-video");
-      const remoteVideo = document.getElementById("remote-video");
-      const switchAudioSourceButton = document.getElementById(
-        "switch-audio-source"
-      );
-      const switchSpeakerSourceButton = document.getElementById(
-        "switch-speaker-source"
-      );
+      // Get references to the DOM elements
+      const remoteVideo = document.getElementById("remoteVideo");
+      const audioOutputSelect = document.getElementById("audioOutput");
 
-      let localStream;
-      let remoteStream;
-      let currentAudioSource = "speaker";
+      // Get user media and set up WebRTC connection
+      async function setupWebRTC() {
+        try {
+          // Get the user's media (audio and video)
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: true,
+          });
 
-      // Initialize WebRTC
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: true })
-        .then((stream) => {
-          localStream = stream;
-          localVideo.srcObject = stream;
-        })
-        .catch((error) => {
-          console.error("Error getting media devices:", error);
-        });
+          // Display the local stream in the video element
+          remoteVideo.srcObject = stream;
 
-      // Example peer connection setup (omitted for brevity)
-      // ...
+          // TODO: Set up your WebRTC connection here and add the remote stream to the video element
+          // For example: pc.ontrack = (event) => remoteVideo.srcObject = event.streams[0];
 
-      switchAudioSourceButton.addEventListener("click", () => {
-        if (currentAudioSource === "speaker") {
-          switchToHeadset();
-        } else {
-          switchToSpeaker();
+          // Enumerate devices and populate the audio output select box
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioOutputDevices = devices.filter(
+            (device) => device.kind === "audiooutput"
+          );
+          populateAudioOutputOptions(audioOutputDevices);
+
+          // Handle audio output device change
+          audioOutputSelect.addEventListener("change", (event) => {
+            const deviceId = event.target.value;
+            switchAudioOutputDevice(deviceId);
+          });
+        } catch (error) {
+          console.error("Error accessing media devices.", error);
         }
-      });
-
-      switchSpeakerSourceButton.addEventListener("click", () => {
-        switchToSpeaker();
-      });
-
-      function switchToHeadset() {
-        const audioTracks = localStream.getAudioTracks();
-        audioTracks.forEach((track) => {
-          track.stop();
-        });
-
-        navigator.mediaDevices
-          .getUserMedia({ audio: { deviceId: { exact: "headset-device-id" } } })
-          .then((stream) => {
-            localStream = stream;
-            localVideo.srcObject = stream;
-            currentAudioSource = "headset";
-            switchAudioSourceButton.textContent = "Switch to Speaker";
-          })
-          .catch((error) => {
-            console.error("Error switching to headset:", error);
-          });
       }
 
-      function switchToSpeaker() {
-        const audioTracks = localStream.getAudioTracks();
-        audioTracks.forEach((track) => {
-          track.stop();
+      // Populate the audio output select box
+      function populateAudioOutputOptions(devices) {
+        audioOutputSelect.innerHTML = "";
+        devices.forEach((device) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.text = device.label || `Device ${device.deviceId}`;
+          audioOutputSelect.appendChild(option);
         });
-
-        navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            localStream = stream;
-            localVideo.srcObject = stream;
-            currentAudioSource = "speaker";
-            switchAudioSourceButton.textContent = "Switch to Headset";
-          })
-          .catch((error) => {
-            console.error("Error switching to speaker:", error);
-          });
       }
+
+      // Switch the audio output device
+      async function switchAudioOutputDevice(deviceId) {
+        if (typeof remoteVideo.setSinkId !== "undefined") {
+          try {
+            await remoteVideo.setSinkId(deviceId);
+            console.log(`Audio output device set to ${deviceId}`);
+          } catch (error) {
+            console.error("Error setting audio output device:", error);
+          }
+        } else {
+          console.warn("setSinkId is not supported in this browser.");
+        }
+      }
+
+      // Initialize WebRTC setup
+      setupWebRTC();
     </script>
   </body>
 </html>
