@@ -7,37 +7,59 @@
   </head>
   <body>
     <h1>WebRTC Audio Device Switcher</h1>
+    <video id="localVideo" autoplay playsinline muted></video>
     <video id="remoteVideo" autoplay playsinline></video>
+    <div>
+      <label for="audioInput">Select Audio Input Device:</label>
+      <select id="audioInput"></select>
+    </div>
     <div>
       <label for="audioOutput">Select Audio Output Device:</label>
       <select id="audioOutput"></select>
     </div>
     <script>
       // Get references to the DOM elements
+      const localVideo = document.getElementById("localVideo");
       const remoteVideo = document.getElementById("remoteVideo");
+      const audioInputSelect = document.getElementById("audioInput");
       const audioOutputSelect = document.getElementById("audioOutput");
 
+      let localStream;
+
       // Get user media and set up WebRTC connection
-      async function setupWebRTC() {
+      async function setupWebRTC(audioInputDeviceId = null) {
         try {
           // Get the user's media (audio and video)
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+          const constraints = {
+            audio: audioInputDeviceId
+              ? { deviceId: { exact: audioInputDeviceId } }
+              : true,
             video: true,
-          });
+          };
+          localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
           // Display the local stream in the video element
-          remoteVideo.srcObject = stream;
+          localVideo.srcObject = localStream;
 
           // TODO: Set up your WebRTC connection here and add the remote stream to the video element
           // For example: pc.ontrack = (event) => remoteVideo.srcObject = event.streams[0];
 
-          // Enumerate devices and populate the audio output select box
+          // Enumerate devices and populate the select boxes
           const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioInputDevices = devices.filter(
+            (device) => device.kind === "audioinput"
+          );
           const audioOutputDevices = devices.filter(
             (device) => device.kind === "audiooutput"
           );
+          populateAudioInputOptions(audioInputDevices);
           populateAudioOutputOptions(audioOutputDevices);
+
+          // Handle audio input device change
+          audioInputSelect.addEventListener("change", (event) => {
+            const deviceId = event.target.value;
+            switchAudioInputDevice(deviceId);
+          });
 
           // Handle audio output device change
           audioOutputSelect.addEventListener("change", (event) => {
@@ -49,6 +71,17 @@
         }
       }
 
+      // Populate the audio input select box
+      function populateAudioInputOptions(devices) {
+        audioInputSelect.innerHTML = "";
+        devices.forEach((device) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.text = device.label || `Device ${device.deviceId}`;
+          audioInputSelect.appendChild(option);
+        });
+      }
+
       // Populate the audio output select box
       function populateAudioOutputOptions(devices) {
         audioOutputSelect.innerHTML = "";
@@ -58,6 +91,37 @@
           option.text = device.label || `Device ${device.deviceId}`;
           audioOutputSelect.appendChild(option);
         });
+      }
+
+      // Switch the audio input device
+      async function switchAudioInputDevice(deviceId) {
+        try {
+          const constraints = {
+            audio: { deviceId: { exact: deviceId } },
+            video: true,
+          };
+          const newStream = await navigator.mediaDevices.getUserMedia(
+            constraints
+          );
+
+          // Replace the tracks in the local stream
+          const audioTrack = newStream.getAudioTracks()[0];
+          const videoTrack = localStream.getVideoTracks()[0];
+          localStream.getTracks().forEach((track) => track.stop());
+          localStream = new MediaStream([audioTrack, videoTrack]);
+          localVideo.srcObject = localStream;
+
+          // TODO: Update your WebRTC connection with the new stream
+          // For example: pc.getSenders().forEach(sender => {
+          //   if (sender.track.kind === 'audio') {
+          //     sender.replaceTrack(audioTrack);
+          //   }
+          // });
+
+          console.log(`Audio input device set to ${deviceId}`);
+        } catch (error) {
+          console.error("Error setting audio input device:", error);
+        }
       }
 
       // Switch the audio output device
